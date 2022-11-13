@@ -8,6 +8,18 @@ pub struct World {
 	owned: bool,
 }
 
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct EcsRest {
+    pub port: u16,
+    pub ipaddr: *mut ::std::os::raw::c_char,
+    pub impl_: *mut ::std::os::raw::c_void,
+}
+
+extern "C" {
+    pub static FLECS__EEcsRest: ecs_entity_t;
+}
+
 impl World {
 	/// Creates a new Flecs World instance
 	pub fn new() -> Self {
