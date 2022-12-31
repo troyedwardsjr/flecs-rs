@@ -17,12 +17,13 @@ debug = true
 lazy_static = "1.4.0"
 
 [build-dependencies]
-bindgen = "0.59.1"
+bindgen = "0.63.0"
 cc = "1.0.70"
 
 [dev-dependencies]
 hecs = "0.9.0"
-bevy_ecs = "0.8.0"
+bevy_ecs = "0.9.1"
+flax = "0.3.2"
 criterion = "0.3"
 
 [[example]]
