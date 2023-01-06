@@ -31,6 +31,18 @@ pub trait TermBuilder : Sized {
 		self
 	}
 
+	fn term_inout<A: Component>(mut self) -> Self {
+		let world_raw = self.world();
+		let term = self.current_term();
+
+		term.id = WorldInfoCache::get_component_id_for_type::<A>(world_raw)
+			.expect("Component type not registered!");
+		term.inout = ecs_inout_kind_t_EcsIn;
+
+		self.next_term();
+		self
+	}
+
 	fn without<A: Component>(mut self) -> Self {
 		let world_raw = self.world();
 		let term = self.current_term();

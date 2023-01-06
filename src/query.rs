@@ -2,7 +2,7 @@ use crate::*;
 
 pub struct Query {
 	world: *mut ecs_world_t,
-	query: *mut ecs_query_t,	
+	pub(crate) query: *mut ecs_query_t,	
 }
 
 impl Query {

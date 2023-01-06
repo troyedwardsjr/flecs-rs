@@ -298,6 +298,12 @@ impl Iter {
 		Entity::new(unsafe { (*self.it).world }, *entity)
     }
 
+	pub fn changed_query(&self, query: &Query) -> bool {
+		unsafe {
+			ecs_query_changed(query.query, self.it)
+		}
+	}
+
     pub fn field<A: Component>(&self, index: i32) -> Column<A> {
         Self::get_field::<A>(self, index)
     }

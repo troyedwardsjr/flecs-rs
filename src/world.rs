@@ -270,12 +270,26 @@ impl World {
 	pub fn filter_builder(& self) -> FilterBuilder {
 		let filter_builder = FilterBuilder::new(self);
         filter_builder
-    }	
+    }
 
 	pub fn query(& self) -> QueryBuilder {
 		let builder = QueryBuilder::new(self);
         builder
     }	
+
+	// Marks a component as modified for change detection
+	pub fn modified<T: Component>(&self, entity: Entity) {
+		let comp_id = WorldInfoCache::get_component_id_for_type::<T>(self.world).expect("Component type not registered!");
+		unsafe {
+			ecs_modified_id(self.world, entity.id(), comp_id);
+		}
+	}
+
+	pub fn changed_query(&self, query: &Query) -> bool {
+		unsafe {
+			ecs_query_changed(query.query, std::ptr::null())
+		}
+	}
 
 	// Iterate through all entities matching 1 component
 	// TODO: can eliminate this in favor of more general each() once I can fix the 
@@ -297,8 +311,7 @@ impl World {
 	pub fn each_mut<'a, G: ComponentGroup<'a>>(&'a self, cb: impl FnMut(Entity, G::MutRefTuple)) {
 		let filter: FilterGroup<'a, G> = FilterGroup::new(self);
 		filter.each_mut(cb);
-    }	
-
+    }
 }
 
 impl Drop for World {
