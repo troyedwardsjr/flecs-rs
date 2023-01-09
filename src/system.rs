@@ -364,6 +364,11 @@ impl Iter {
 
 			ColumnDynamic::new(array, count, size as usize, is_shared)
     }	
+
+	pub fn field_id(&self, index: i32) -> ecs_id_t {
+		let world = unsafe { (*self.it).real_world };
+		unsafe { ecs_field_id(self.it, index) }
+	}
 }
 
 pub type SystemCallback = unsafe extern "C" fn(*mut ecs_iter_t);

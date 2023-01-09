@@ -4,7 +4,7 @@ use crate::*;
 use crate::cache::WorldInfoCache;
 
 pub struct World {
-	world: *mut ecs_world_t,
+	pub world: *mut ecs_world_t,
 	owned: bool,
 }
 
@@ -241,12 +241,12 @@ impl World {
 	}
 
 	pub fn component<T: 'static>(&mut self) -> Entity {
-		let comp_id = register_component_typed::<T>(self.world, None);
+		let comp_id = register_component_typed_static::<T>(self.world, None);
 		Entity::new(self.world, comp_id)
 	}
 
 	pub fn component_named<T: 'static>(&mut self, name: &str) -> EntityId {
-		register_component_typed::<T>(self.world, Some(name))
+		register_component_typed_static::<T>(self.world, Some(name))
 	}
 
 	pub fn component_dynamic(&mut self, symbol: &'static str, layout: Layout) -> EntityId {
@@ -255,6 +255,15 @@ impl World {
 
 	pub fn component_dynamic_named(&mut self, symbol: &'static str, name: &'static str, layout: Layout) -> EntityId {
 		register_component_dynamic(self.world, symbol, Some(name), layout)
+	}
+
+	pub fn component_runtime<T: 'static>(&mut self) -> Entity {
+		let comp_id = register_component_typed_runtime::<T>(self.world, None);
+		Entity::new(self.world, comp_id)
+	}
+
+	pub fn component_dynamic_runtime(&mut self, symbol: &'static str, layout: Layout) -> EntityId {
+		register_component_dynamic(self.world, symbol, None, layout)
 	}
 
 	pub fn system(&self) -> SystemBuilder {

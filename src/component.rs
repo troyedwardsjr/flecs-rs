@@ -10,13 +10,7 @@ use crate::cache::WorldInfoCache;
 //		for example Position {} -> 'module.Position'
 //		then plugins could lookup/cache the runtime id via those names
 
-pub(crate) fn register_component_typed<T: 'static>(world: *mut ecs_world_t, name: Option<&str>) -> EntityId {
-	// see if we already cached it
-	if let Some(comp_id) = WorldInfoCache::get_component_id_for_type::<T>(world) {
-		return comp_id;
-	}
-
-	let type_id = TypeId::of::<T>();
+pub(crate) fn create_component_desc<T: 'static>(world: *mut ecs_world_t, name: Option<&str>) -> ComponentDescriptor {
 	let layout = std::alloc::Layout::new::<T>();
 	let symbol = std::any::type_name::<T>().to_owned();
 
@@ -53,16 +47,41 @@ pub(crate) fn register_component_typed<T: 'static>(world: *mut ecs_world_t, name
 	// specific aspects of the symbol as well. But this may not jive with general Flecs-rs users...
 	let symbol = name.clone();
 
-	let comp_id = register_component(world, 
-		ComponentDescriptor { 
-			symbol,
-			name, 
-			custom_id: None,
-			layout 
-	});
+    ComponentDescriptor { 
+		symbol,
+		name, 
+		custom_id: None,
+		layout 
+	}
+}
 
-    //println!("Registered Component: {} -> {}", symbol, comp_id);
+pub(crate) fn register_component_typed_static<T: 'static>(world: *mut ecs_world_t, name: Option<&str>) -> EntityId {
+	// See if we already cached it
+	if let Some(comp_id) = WorldInfoCache::get_component_id_for_type::<T>(world) {
+		return comp_id;
+	}
+
+	let comp_desc = create_component_desc::<T>(world, name);
+	let comp_id = register_component(world, comp_desc);
+	let type_id = TypeId::of::<T>();
+	
 	WorldInfoCache::register_component_id_for_type_id(world, comp_id, type_id);
+
+	comp_id
+}
+
+pub(crate) fn register_component_typed_runtime<T: 'static>(world: *mut ecs_world_t, name: Option<&str>) -> EntityId {
+	// see if we already cached it
+	if let Some(comp_id) = WorldInfoCache::get_component_id_for_type::<T>(world) {
+		return comp_id;
+	}
+
+	let comp_desc = create_component_desc::<T>(world, name);
+	let comp_id = register_component_runtime(world, comp_desc);
+	let type_id = TypeId::of::<T>();
+	
+	WorldInfoCache::register_component_id_for_type_id(world, comp_id, type_id);
+
 	comp_id
 }
 
@@ -72,6 +91,23 @@ pub(crate) fn register_component_dynamic(world: *mut ecs_world_t, symbol: &'stat
 		return comp_info.id;
 	}
 	let comp_id = register_component(world, 
+		ComponentDescriptor { 
+			symbol: symbol.to_owned(), 
+			name: name.unwrap_or("").to_owned(), 
+			custom_id: None,
+			layout 
+	});
+
+	WorldInfoCache::register_component_id_for_symbol(world, comp_id, symbol, layout.size());
+	comp_id
+}
+
+pub(crate) fn register_component_dynamic_runtime(world: *mut ecs_world_t, symbol: &'static str, name: Option<&'static str>, layout: Layout) -> EntityId {
+	// see if we already cached it
+	if let Some(comp_info) = WorldInfoCache::get_component_id_for_symbol(world, symbol) {
+		return comp_info.id;
+	}
+	let comp_id = register_component_runtime(world, 
 		ComponentDescriptor { 
 			symbol: symbol.to_owned(), 
 			name: name.unwrap_or("").to_owned(), 
@@ -143,4 +179,57 @@ pub fn register_component(world: *mut ecs_world_t, desc: ComponentDescriptor) ->
 	// println!("register_component - entity {}", entity);
 
 	entity
+}
+
+pub fn register_component_runtime(world: *mut ecs_world_t, desc: ComponentDescriptor) -> ecs_entity_t {
+	let name_c_str = std::ffi::CString::new(desc.name).unwrap();
+	let symbol_c_str = std::ffi::CString::new(desc.symbol).unwrap();
+
+	// could be a const
+	let sep = std::ffi::CString::new("::").unwrap();
+
+	let mut entity_desc: ecs_entity_desc_t = unsafe { MaybeUninit::zeroed().assume_init() };
+	if let Some(custom_id) = desc.custom_id {
+		entity_desc.id = custom_id;
+	}
+
+	// For now these are the same as the T::name is passed in
+	entity_desc.name = name_c_str.as_ptr() as *const i8;
+	entity_desc.symbol = symbol_c_str.as_ptr() as *const i8;
+
+	entity_desc.sep = sep.as_ptr() as *const i8;
+	entity_desc.root_sep = sep.as_ptr() as *const i8;
+
+    let entity = unsafe { ecs_entity_init(world, &entity_desc) };
+
+	// only register a ecs component if size > 0
+	if desc.layout.size() > 0 {
+		let mut comp_desc: ecs_component_desc_t = unsafe { MaybeUninit::zeroed().assume_init() };
+		comp_desc.entity = entity;
+		comp_desc.type_.size = desc.layout.size() as ecs_size_t;
+		comp_desc.type_.alignment = desc.layout.align() as ecs_size_t;
+
+		let comp_entity = unsafe { ecs_component_init(world, &comp_desc) };
+		assert!(comp_entity == entity);
+	}
+
+	let mut struct_desc: ecs_struct_desc_t = unsafe { MaybeUninit::zeroed().assume_init() };
+    let mut member: ecs_member_t = unsafe { MaybeUninit::zeroed().assume_init() };
+	struct_desc.members = [member; 32];
+
+	let mut member: ecs_member_t = unsafe { MaybeUninit::zeroed().assume_init() };
+    member.name = std::ffi::CString::new("x").unwrap().as_ptr() as *const i8;
+    member.type_ = unsafe { FLECS__Eecs_f32_t };
+    struct_desc.members[0] = member;
+
+	let mut member: ecs_member_t = unsafe { MaybeUninit::zeroed().assume_init() };
+    member.name = std::ffi::CString::new("y").unwrap().as_ptr() as *const i8;
+    member.type_ = unsafe { FLECS__Eecs_f32_t };
+    struct_desc.members[1] = member;
+
+	struct_desc.entity = entity;
+
+	let runtime_struct = unsafe { ecs_struct_init(world, &struct_desc) };
+
+	runtime_struct
 }
